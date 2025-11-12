@@ -1,7 +1,26 @@
 import axios from 'axios';
 
+// Normalise la base d'URL pour garantir le suffixe /api
+function getBaseURL(): string {
+  const raw = process.env.NEXT_PUBLIC_API_URL;
+  if (!raw) return 'http://localhost:5000/api';
+  try {
+    const u = new URL(raw);
+    const pathname = u.pathname.replace(/\/+$/, '');
+    if (pathname.toLowerCase().endsWith('/api')) {
+      return raw; // déjà correct
+    }
+    const normalized = `${u.origin}${pathname ? pathname : ''}/api`;
+    return normalized;
+  } catch {
+    // raw peut ne pas être une URL complète; fallback simple
+    const trimmed = raw.replace(/\/+$/, '');
+    return trimmed.endsWith('/api') ? trimmed : `${trimmed}/api`;
+  }
+}
+
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api',
+  baseURL: getBaseURL(),
   headers: {
     'Content-Type': 'application/json',
   },
@@ -36,4 +55,3 @@ api.interceptors.response.use(
 );
 
 export default api;
-
