@@ -1,0 +1,11 @@
+# Netlify configuration for deploying the Next.js frontend located in /frontend
+
+[build]
+  # Install and build the frontend from the frontend subfolder
+  command = "cd frontend && npm ci && npm run build"
+  # Publish directory handled by the Netlify Next.js plugin; still point to frontend .next for clarity
+  publish = "frontend/.next"
+  functions = "netlify/functions"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
