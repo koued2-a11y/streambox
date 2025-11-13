@@ -28,9 +28,21 @@ app.use(cors({
       console.warn('CORS: no FRONTEND_URLS configured — allowing all origins by fallback');
       return callback(null, true);
     }
-    if (allowedOrigins.includes(origin)) {
-      return callback(null, true);
+    // Exact match
+    if (allowedOrigins.includes(origin)) return callback(null, true);
+
+    // Allow common hosting platforms if they look like Vercel/Netlify or localhost (useful if user deploys to those)
+    try {
+      const u = new URL(origin);
+      const hostname = u.hostname;
+      if (hostname.endsWith('.vercel.app') || hostname.endsWith('.netlify.app') || hostname === 'localhost' || hostname.endsWith('.localhost')) {
+        console.info(`CORS: allowing platform origin ${origin}`);
+        return callback(null, true);
+      }
+    } catch (err) {
+      // ignore URL parse errors
     }
+
     console.warn(`CORS: blocked origin ${origin} not in allowed list`);
     return callback(new Error('Not allowed by CORS'));
   },
