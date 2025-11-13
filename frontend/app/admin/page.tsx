@@ -195,9 +195,11 @@ export default function AdminPage() {
                           <div className="flex items-center gap-3">
                             <img
                               src={
-                                video.thumbnailUrl.startsWith('http')
-                                  ? video.thumbnailUrl
-                                  : `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '')}${video.thumbnailUrl}`
+                                video.thumbnailUrl
+                                  ? (video.thumbnailUrl.startsWith('http')
+                                      ? video.thumbnailUrl
+                                      : `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '')}${video.thumbnailUrl}`)
+                                  : '/default-avatar.png'
                               }
                               alt={video.title}
                               className="w-16 h-9 object-cover rounded"
