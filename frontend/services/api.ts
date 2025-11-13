@@ -3,8 +3,9 @@ import axios from 'axios';
 // Normalise la base d'URL pour garantir le suffixe /api
 function getBaseURL(): string {
   const raw = process.env.NEXT_PUBLIC_API_URL;
-  if (!raw) return 'http://localhost:5000/api';
-  try {
+  if (!raw) return 'http://localhost:5000/api';  // <-- ici le fallback
+  ...
+}
     const u = new URL(raw);
     const pathname = u.pathname.replace(/\/+$/, '');
     if (pathname.toLowerCase().endsWith('/api')) {
