@@ -48,10 +48,9 @@ router.post('/run-avatar-scripts', secretOrAuth, async (req, res) => {
 
     // Connect DB and update users
     await connectDB();
-    const defaultAvatar = publicUrl || (process.env.DEFAULT_AVATAR_URL || null);
-    if (!defaultAvatar) {
-      return res.status(500).json({ message: 'No default avatar URL available' });
-    }
+    // Determine final default avatar URL. Prefer uploaded publicUrl, then DEFAULT_AVATAR_URL env, then a known public R2 base if present.
+    const fallbackPublic = process.env.R2_PUBLIC_BASE ? `${process.env.R2_PUBLIC_BASE.replace(/\/$/, '')}/defaults/nextjs-avatar.svg` : 'https://pub-077976fc48264565ba11341176cf6932.r2.dev/defaults/nextjs-avatar.svg';
+    const defaultAvatar = publicUrl || process.env.DEFAULT_AVATAR_URL || fallbackPublic;
 
     const [updated] = await User.update({ avatar: defaultAvatar }, {
       where: { avatar: null }
