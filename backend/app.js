@@ -44,6 +44,45 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', message: 'StreamBox API est en ligne' });
 });
 
+// Init admin route - crée le compte admin s'il n'existe pas
+app.post('/api/init-admin', async (req, res) => {
+  try {
+    const { User } = require('./models');
+    const { Op } = require('sequelize');
+    
+    const existingAdmin = await User.findOne({ where: { role: 'admin' } });
+    if (existingAdmin) {
+      return res.json({ 
+        status: 'OK', 
+        message: 'Admin existe déjà',
+        admin: existingAdmin.email 
+      });
+    }
+
+    const admin = await User.create({
+      username: 'admin',
+      email: 'admin@streambox.com',
+      password: 'admin123',
+      role: 'admin',
+      avatar: null
+    });
+
+    res.json({ 
+      status: 'CREATED', 
+      message: 'Administrateur créé avec succès',
+      email: admin.email,
+      username: admin.username
+    });
+  } catch (error) {
+    console.error('Erreur lors de la création admin:', error.message);
+    res.status(500).json({ 
+      status: 'ERROR',
+      message: 'Impossible de créer l\'admin',
+      error: error.message 
+    });
+  }
+});
+
 // 404
 app.use((req, res) => {
   res.status(404).json({ message: 'Route non trouvée' });
