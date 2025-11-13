@@ -57,3 +57,25 @@
   @apply bg-gray-500 dark:bg-gray-500;
 }
 
+/* Video player helpers */
+.player-container {
+  position: relative;
+}
+
+.big-play {
+  transition: transform 160ms ease, opacity 160ms ease;
+}
+
+.big-play:hover {
+  transform: scale(1.05);
+}
+
+.controls {
+  backdrop-filter: blur(6px);
+}
+
+.player-container .bg-primary {
+  /* fallback in case Tailwind primary isn't available */
+  background-color: #06b6d4;
+}
+

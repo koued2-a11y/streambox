@@ -6,6 +6,8 @@ const multer = require('multer');
 const { Op } = require('sequelize');
 const { auth, isAdmin } = require('../middleware/auth');
 const { Video, User, Comment } = require('../models');
+let r2;
+try { r2 = require('../services/r2'); } catch (e) { r2 = null; }
 
 // Helper: normaliser le format attendu par le frontend
 function toVideoDTO(video) {
@@ -152,9 +154,34 @@ router.post('/', auth, isAdmin, upload.fields([
     const videoFile = req.files.video[0];
     const thumbnailFile = req.files.thumbnail?.[0] || null;
 
-    // Construire les chemins accessibles via /uploads
-    const url = `/uploads/videos/${videoFile.filename}`;
-    const thumbnail = thumbnailFile ? `thumbnails/${thumbnailFile.filename}` : null;
+    // Si R2 est configuré, uploader sur R2 et utiliser l'URL publique
+    let url, thumbnail;
+    if (r2 && process.env.R2_BUCKET_NAME) {
+      try {
+        const videoKey = `videos/${videoFile.filename}`;
+        url = await r2.uploadFile(videoFile.path, videoKey, videoFile.mimetype);
+        if (thumbnailFile) {
+          const thumbKey = `thumbnails/${thumbnailFile.filename}`;
+          thumbnail = await r2.uploadFile(thumbnailFile.path, thumbKey, thumbnailFile.mimetype);
+          // store only the key or the full url depending on frontend expectation
+          // here we store the full url
+        } else {
+          thumbnail = null;
+        }
+
+        // optional: remove local files
+        try { fs.unlinkSync(videoFile.path); } catch (e) {}
+        if (thumbnailFile) try { fs.unlinkSync(thumbnailFile.path); } catch (e) {}
+      } catch (err) {
+        console.error('R2 upload failed, falling back to local storage:', err.message);
+        url = `/uploads/videos/${videoFile.filename}`;
+        thumbnail = thumbnailFile ? `/uploads/thumbnails/${thumbnailFile.filename}` : null;
+      }
+    } else {
+      // Construire les chemins accessibles via /uploads
+      url = `/uploads/videos/${videoFile.filename}`;
+      thumbnail = thumbnailFile ? `/uploads/thumbnails/${thumbnailFile.filename}` : null;
+    }
 
     const created = await Video.create({
       title: String(title).trim(),

@@ -24,6 +24,8 @@ const User = sequelize.define('User', {
   avatar: {
     type: DataTypes.STRING,
     allowNull: true,
+    // Default avatar: can be overridden with env var DEFAULT_AVATAR_URL
+    defaultValue: process.env.DEFAULT_AVATAR_URL || 'https://pub-077976fc48264565ba11341176cf6932.r2.dev/defaults/nextjs-avatar.svg'
   },
 });
 

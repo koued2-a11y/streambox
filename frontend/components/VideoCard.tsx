@@ -39,13 +39,13 @@ export default function VideoCard({ video }: VideoCardProps) {
   };
 
   // Construire l'URL complète du thumbnail
-  const getThumbnailUrl = () => {
-    if (video.thumbnailUrl.startsWith('http')) {
-      return video.thumbnailUrl; // URL externe (placeholder)
-    }
-    // URL locale : ajouter l'URL du backend
-    return `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '')}${video.thumbnailUrl}`;
+  const buildUrl = (path?: string) => {
+    if (!path) return undefined;
+    if (path.startsWith('http')) return path;
+    return `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '')}${path}`;
   };
+
+  const getThumbnailUrl = () => buildUrl(video.thumbnailUrl);
 
   return (
     <Link href={`/video/${video._id}`}>
@@ -76,7 +76,7 @@ export default function VideoCard({ video }: VideoCardProps) {
 
           <div className="flex items-center gap-2 mb-3">
             <img
-              src={video.uploadedBy.avatar}
+              src={buildUrl(video.uploadedBy.avatar) || '/default-avatar.png'}
               alt={video.uploadedBy.username}
               className="w-8 h-8 rounded-full"
             />
