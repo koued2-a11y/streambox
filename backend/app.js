@@ -14,8 +14,26 @@ connectDB();
 // de la requête (permet d'accepter le front déployé sur netlify sans
 // bloquer). Le site doit définir `FRONTEND_URL` en production pour
 // restreindre l'origine.
+// CORS configuration : permettre plusieurs origines via FRONTEND_URLS (virgule séparée)
+// Exemple: FRONTEND_URLS="https://streambox2.netlify.app,https://frontend-nx4h9jpkj-koueds-projects.vercel.app"
+const rawFrontendUrls = process.env.FRONTEND_URLS || process.env.FRONTEND_URL || '';
+const allowedOrigins = rawFrontendUrls.split(',').map(s => s.trim()).filter(Boolean);
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
+  origin: function(origin, callback) {
+    // Allow non-browser requests (curl, server-to-server) with no origin
+    if (!origin) return callback(null, true);
+    // If no list configured, allow all (fallback) but log a warning
+    if (allowedOrigins.length === 0) {
+      console.warn('CORS: no FRONTEND_URLS configured — allowing all origins by fallback');
+      return callback(null, true);
+    }
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    console.warn(`CORS: blocked origin ${origin} not in allowed list`);
+    return callback(new Error('Not allowed by CORS'));
+  },
   credentials: false,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
