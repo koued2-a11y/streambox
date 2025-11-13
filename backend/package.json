@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
-    "build": "echo 'skip build'"
+    "build": "echo 'skip build'",
+    "postbuild": "node scripts/createAdmin.js || true"
   },
   "keywords": [
     "streaming",

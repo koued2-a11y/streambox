@@ -9,14 +9,26 @@ const app = express();
 connectDB();
 
 // Middleware
+// Autoriser l'origine fournie par l'environnement (Netlify) ;
+// si elle n'est pas définie, utiliser `true` pour refléter l'origine
+// de la requête (permet d'accepter le front déployé sur netlify sans
+// bloquer). Le site doit définir `FRONTEND_URL` en production pour
+// restreindre l'origine.
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'https://streambox-1m7t.onrender.com',
-  credentials: true,
+  origin: process.env.FRONTEND_URL || '*',
+  credentials: false,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  maxAge: 86400
 }));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Log incoming requests for debugging
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.path} - Origin: ${req.get('origin')}`);
+  next();
+});
 
 // Static files
 app.use('/uploads', express.static('uploads'));
