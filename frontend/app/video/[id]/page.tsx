@@ -166,7 +166,13 @@ export default function VideoPage() {
 
                 <div className="flex items-center gap-4 p-4 bg-gray-50 dark:bg-dark-card rounded-lg mb-6">
                   <img
-                    src={video.uploadedBy.avatar}
+                    src={
+                      video.uploadedBy?.avatar
+                        ? (video.uploadedBy.avatar.startsWith('http')
+                            ? video.uploadedBy.avatar
+                            : `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '')}${video.uploadedBy.avatar}`)
+                        : '/default-avatar.png'
+                    }
                     alt={video.uploadedBy.username}
                     className="w-12 h-12 rounded-full"
                   />
@@ -211,7 +217,13 @@ export default function VideoPage() {
                     {video.comments.map((comment: any, index: number) => (
                       <div key={index} className="flex gap-4 p-4 bg-gray-50 dark:bg-dark-card rounded-lg">
                         <img
-                          src={comment.user.avatar}
+                          src={
+                            comment.user?.avatar
+                              ? (comment.user.avatar.startsWith('http')
+                                  ? comment.user.avatar
+                                  : `${process.env.NEXT_PUBLIC_API_URL?.replace('/api', '')}${comment.user.avatar}`)
+                              : '/default-avatar.png'
+                          }
                           alt={comment.user.username}
                           className="w-10 h-10 rounded-full"
                         />
