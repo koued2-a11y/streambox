@@ -382,72 +382,106 @@ export default function AdminPage() {
                 </div>
 
                 {bulkFiles.length > 0 && (
-                  <div className="space-y-3 max-h-64 overflow-auto">
+                  <div className="space-y-3 max-h-96 overflow-auto">
                     {bulkFiles.map((file, idx) => (
-                      <div key={idx} className="p-3 border rounded flex flex-col md:flex-row md:items-center gap-3">
-                        <div className="flex-1">
+                      <div key={idx} className="p-3 border rounded flex flex-col gap-3">
+                        <div className="flex justify-between items-center">
                           <p className="font-semibold">{file.name}</p>
-                          <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-3">
-                            <input
-                              type="text"
-                              value={bulkMetas[idx]?.title || ''}
+                          <span className="text-xs px-2 py-1 rounded-full" style={{
+                            backgroundColor: bulkProgress[idx]?.status === 'error' ? '#fee2e2' : bulkProgress[idx]?.status === 'done' ? '#dcfce7' : bulkProgress[idx]?.status === 'uploading' ? '#dbeafe' : '#f3f4f6',
+                            color: bulkProgress[idx]?.status === 'error' ? '#dc2626' : bulkProgress[idx]?.status === 'done' ? '#16a34a' : bulkProgress[idx]?.status === 'uploading' ? '#2563eb' : '#6b7280'
+                          }}>
+                            {bulkProgress[idx]?.status === 'pending' && 'En attente'}
+                            {bulkProgress[idx]?.status === 'uploading' && `${bulkProgress[idx]?.progress || 0}%`}
+                            {bulkProgress[idx]?.status === 'done' && '✓ Complété'}
+                            {bulkProgress[idx]?.status === 'error' && '✗ Erreur'}
+                          </span>
+                        </div>
+                        
+                        {bulkProgress[idx]?.status === 'uploading' && (
+                          <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+                            <div 
+                              className="bg-blue-500 h-full transition-all duration-300"
+                              style={{ width: `${bulkProgress[idx]?.progress || 0}%` }}
+                            ></div>
+                          </div>
+                        )}
+                        
+                        {bulkProgress[idx]?.status === 'error' && bulkProgress[idx]?.error && (
+                          <p className="text-sm text-red-600">{bulkProgress[idx]?.error}</p>
+                        )}
+                        
+                        <div className="flex flex-col md:flex-row gap-3">
+                          <div className="flex-1">
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                              <input
+                                type="text"
+                                value={bulkMetas[idx]?.title || ''}
+                                onChange={(e) => {
+                                  const copy = [...bulkMetas];
+                                  copy[idx] = { ...(copy[idx] || {}), title: e.target.value };
+                                  setBulkMetas(copy);
+                                }}
+                                className="input-field"
+                                placeholder="Titre"
+                                disabled={bulkProgress[idx]?.status !== 'pending'}
+                              />
+                              <select
+                                value={bulkMetas[idx]?.genre || 'Autre'}
+                                onChange={(e) => {
+                                  const copy = [...bulkMetas];
+                                  copy[idx] = { ...(copy[idx] || {}), genre: e.target.value };
+                                  setBulkMetas(copy);
+                                }}
+                                className="input-field"
+                                disabled={bulkProgress[idx]?.status !== 'pending'}
+                              >
+                                {genres.map((g) => (
+                                  <option key={g} value={g}>{g}</option>
+                                ))}
+                              </select>
+                            </div>
+                            <textarea
+                              value={bulkMetas[idx]?.description || ''}
                               onChange={(e) => {
                                 const copy = [...bulkMetas];
-                                copy[idx] = { ...(copy[idx] || {}), title: e.target.value };
+                                copy[idx] = { ...(copy[idx] || {}), description: e.target.value };
                                 setBulkMetas(copy);
                               }}
-                              className="input-field"
-                              placeholder="Titre"
+                              className="input-field mt-2"
+                              placeholder="Description (optionnel)"
+                              rows={2}
+                              disabled={bulkProgress[idx]?.status !== 'pending'}
                             />
-                            <input
-                              type="text"
-                              value={bulkMetas[idx]?.genre || 'Autre'}
-                              onChange={(e) => {
-                                const copy = [...bulkMetas];
-                                copy[idx] = { ...(copy[idx] || {}), genre: e.target.value };
-                                setBulkMetas(copy);
-                              }}
-                              className="input-field"
-                              placeholder="Genre"
-                            />
+                          </div>
+                          <div className="flex flex-col gap-2">
+                            <label className="block text-xs font-medium">Vignette</label>
                             <input
                               type="file"
                               accept="image/*"
                               onChange={(e) => {
                                 const fileThumb = e.target.files?.[0] || null;
-                                const copy = [...bulkFiles];
-                                // store thumbnail separately using a parallel state
                                 const metas = [...bulkMetas];
                                 metas[idx] = { ...(metas[idx] || {}), thumbnailFile: fileThumb };
                                 setBulkMetas(metas);
                               }}
-                              className="input-field"
+                              className="input-field text-sm"
+                              disabled={bulkProgress[idx]?.status !== 'pending'}
                             />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const files = bulkFiles.filter((_, i) => i !== idx);
+                                setBulkFiles(files);
+                                const metas = bulkMetas.filter((_, i) => i !== idx);
+                                setBulkMetas(metas);
+                              }}
+                              disabled={bulkProgress[idx]?.status !== 'pending'}
+                              className="btn-secondary text-sm"
+                            >
+                              Supprimer
+                            </button>
                           </div>
-                          <textarea
-                            value={bulkMetas[idx]?.description || ''}
-                            onChange={(e) => {
-                              const copy = [...bulkMetas];
-                              copy[idx] = { ...(copy[idx] || {}), description: e.target.value };
-                              setBulkMetas(copy);
-                            }}
-                            className="input-field mt-2"
-                            placeholder="Description (optionnel)"
-                          />
-                        </div>
-                        <div className="flex-shrink-0">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const files = bulkFiles.filter((_, i) => i !== idx);
-                              setBulkFiles(files);
-                              const metas = bulkMetas.filter((_, i) => i !== idx);
-                              setBulkMetas(metas);
-                            }}
-                            className="btn-secondary"
-                          >
-                            Supprimer
-                          </button>
                         </div>
                       </div>
                     ))}
