@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const cookieParser = require('cookie-parser');
 const cors = require('cors');
 const { connectDB } = require('./config/database');
 
@@ -46,13 +47,25 @@ app.use(cors({
     console.warn(`CORS: blocked origin ${origin} not in allowed list`);
     return callback(new Error('Not allowed by CORS'));
   },
-  credentials: false,
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   maxAge: 86400
 }));
+// Ensure Access-Control-Allow-Credentials is always explicitly set to 'true'
+// Some proxies (Cloudflare / platform edge) may strip or change CORS headers,
+// so we set it again here after the cors middleware.
+app.use((req, res, next) => {
+  try {
+    res.setHeader('Access-Control-Allow-Credentials', 'true');
+  } catch (e) {
+    // ignore
+  }
+  next();
+});
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // Log incoming requests for debugging
 app.use((req, res, next) => {

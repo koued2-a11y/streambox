@@ -3,9 +3,32 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const { body, validationResult } = require('express-validator');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const { Op, UniqueConstraintError } = require('sequelize');
-const User = require('../models/User');
+const { User, RefreshToken } = require('../models');
 const { auth } = require('../middleware/auth');
+
+// Refresh token lifetime (ms) — 30 days
+const REFRESH_TOKEN_TTL = Number(process.env.REFRESH_TOKEN_TTL_MS) || 30 * 24 * 60 * 60 * 1000;
+
+function generateRefreshToken() {
+  return crypto.randomBytes(48).toString('hex');
+}
+
+async function createAndSetRefreshToken(res, userId) {
+  const token = generateRefreshToken();
+  const expiresAt = new Date(Date.now() + REFRESH_TOKEN_TTL);
+
+  await RefreshToken.create({ token, userId, expiresAt });
+
+  const cookieOpts = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    maxAge: REFRESH_TOKEN_TTL
+  };
+  res.cookie('refreshToken', token, cookieOpts);
+}
 
 /**
  * @route   POST /api/auth/register
@@ -45,6 +68,9 @@ router.post('/register', [
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
+
+    // create refresh token and set cookie
+    await createAndSetRefreshToken(res, user.id);
 
     res.status(201).json({
       token,
@@ -98,6 +124,9 @@ router.post('/login', [
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
+    // create refresh token and set cookie
+    await createAndSetRefreshToken(res, user.id);
+
     res.json({
       token,
       user: {
@@ -124,6 +153,60 @@ router.get('/me', auth, async (req, res) => {
     res.json({ user: req.user });
   } catch (error) {
     console.error('Erreur lors de la récupération du profil:', error);
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+});
+
+/**
+ * @route POST /api/auth/refresh
+ * @desc  Refresh access token using refreshToken cookie
+ * @access Public (cookie)
+ */
+router.post('/refresh', async (req, res) => {
+  try {
+    const token = req.cookies?.refreshToken || req.headers['x-refresh-token'];
+    if (!token) return res.status(401).json({ message: 'Refresh token manquant' });
+
+    const stored = await RefreshToken.findOne({ where: { token } });
+    if (!stored) return res.status(401).json({ message: 'Refresh token invalide' });
+
+    if (new Date(stored.expiresAt) < new Date()) {
+      // expired
+      await stored.destroy();
+      return res.status(401).json({ message: 'Refresh token expiré' });
+    }
+
+    const user = await User.findByPk(stored.userId);
+    if (!user) return res.status(401).json({ message: 'Utilisateur introuvable' });
+
+    // rotate: remove old token and create a new one
+    await stored.destroy();
+    await createAndSetRefreshToken(res, user.id);
+
+    const accessToken = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, { expiresIn: process.env.JWT_EXPIRES_IN || '7d' });
+    res.json({ token: accessToken, user: { id: user.id, username: user.username, email: user.email, role: user.role, avatar: user.avatar } });
+  } catch (err) {
+    console.error('Erreur refresh token:', err);
+    res.status(500).json({ message: 'Erreur serveur' });
+  }
+});
+
+/**
+ * @route POST /api/auth/logout
+ * @desc  Revoke refresh token and clear cookie
+ * @access Private
+ */
+router.post('/logout', auth, async (req, res) => {
+  try {
+    // remove cookie value if present
+    const token = req.cookies?.refreshToken;
+    if (token) {
+      await RefreshToken.destroy({ where: { token } });
+    }
+    res.clearCookie('refreshToken');
+    res.json({ message: 'Déconnecté' });
+  } catch (err) {
+    console.error('Erreur logout:', err);
     res.status(500).json({ message: 'Erreur serveur' });
   }
 });

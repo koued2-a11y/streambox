@@ -124,7 +124,8 @@ ensureDir(thumbnailsDir);
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    if (file.fieldname === 'thumbnail') cb(null, thumbnailsDir);
+    const fname = String(file.fieldname || '').toLowerCase();
+    if (fname.includes('thumb')) cb(null, thumbnailsDir);
     else cb(null, videosDir);
   },
   filename: (req, file, cb) => {
@@ -207,7 +208,81 @@ router.post('/', auth, isAdmin, upload.fields([
   }
 });
 
-module.exports = router;
+
+/**
+ * @route   POST /api/videos/bulk
+ * @desc    Upload multiple vidéos en une seule requête
+ * @access  Private (admin)
+ */
+router.post('/bulk', auth, isAdmin, upload.fields([
+  { name: 'videos', maxCount: 50 },
+  { name: 'thumbnails', maxCount: 50 }
+]), async (req, res) => {
+  try {
+    const metadata = req.body?.metadata ? JSON.parse(req.body.metadata) : [];
+    const videoFiles = req.files?.videos || [];
+    const thumbnailFiles = req.files?.thumbnails || [];
+
+    if (!videoFiles.length) return res.status(400).json({ message: 'Aucun fichier vidéo fourni' });
+
+    const createdIds = [];
+
+    for (let i = 0; i < videoFiles.length; i++) {
+      const videoFile = videoFiles[i];
+      const thumbnailFile = thumbnailFiles[i] || null;
+      const meta = metadata[i] || {};
+
+      let url, thumbnail;
+      if (r2 && process.env.R2_BUCKET_NAME) {
+        try {
+          const videoKey = `videos/${videoFile.filename}`;
+          url = await r2.uploadFile(videoFile.path, videoKey, videoFile.mimetype);
+          if (thumbnailFile) {
+            const thumbKey = `thumbnails/${thumbnailFile.filename}`;
+            thumbnail = await r2.uploadFile(thumbnailFile.path, thumbKey, thumbnailFile.mimetype);
+          } else {
+            thumbnail = null;
+          }
+
+          try { fs.unlinkSync(videoFile.path); } catch (e) {}
+          if (thumbnailFile) try { fs.unlinkSync(thumbnailFile.path); } catch (e) {}
+        } catch (err) {
+          console.error('R2 upload failed for one file, falling back to local storage:', err.message);
+          url = `/uploads/videos/${videoFile.filename}`;
+          thumbnail = thumbnailFile ? `/uploads/thumbnails/${thumbnailFile.filename}` : null;
+        }
+      } else {
+        url = `/uploads/videos/${videoFile.filename}`;
+        thumbnail = thumbnailFile ? `/uploads/thumbnails/${thumbnailFile.filename}` : null;
+      }
+
+      const created = await Video.create({
+        title: String(meta.title || videoFile.originalname).trim(),
+        description: String(meta.description || '').trim(),
+        genre: meta.genre || 'Autre',
+        url,
+        thumbnail,
+        views: 0,
+        uploadedBy: req.user.id
+      });
+
+      createdIds.push(created.id);
+    }
+
+    const createdWithRelations = await Video.findAll({
+      where: { id: createdIds },
+      include: [
+        { model: User, as: 'uploader', attributes: ['id', 'username', 'avatar'] },
+        { model: User, as: 'likers', attributes: ['id'] }
+      ]
+    });
+
+    res.status(201).json({ message: 'Bulk upload réussi', videos: createdWithRelations.map(toVideoDTO) });
+  } catch (error) {
+    console.error('Erreur bulk upload:', error);
+    res.status(500).json({ message: 'Erreur serveur lors du bulk upload' });
+  }
+});
 /**
  * @route   POST /api/videos/:id/comment
  * @desc    Ajouter un commentaire à une vidéo
@@ -237,3 +312,5 @@ router.post('/:id/comment', auth, async (req, res) => {
     res.status(500).json({ message: 'Erreur serveur' });
   }
 });
+
+module.exports = router;

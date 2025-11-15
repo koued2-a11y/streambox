@@ -26,6 +26,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true,
 });
 
 // Intercepteur pour ajouter le token JWT
@@ -46,11 +47,32 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
-        window.location.href = '/login';
-      }
+    const originalRequest = error.config;
+    if (error.response?.status === 401 && !originalRequest?._retry) {
+      originalRequest._retry = true;
+      // tenter un refresh via le cookie (endpoint /auth/refresh)
+      return axios.post(`${getBaseURL()}/auth/refresh`, {}, { withCredentials: true })
+        .then((resp) => {
+          const newToken = resp.data?.token;
+          if (newToken) {
+            localStorage.setItem('token', newToken);
+            originalRequest.headers = originalRequest.headers || {};
+            originalRequest.headers.Authorization = `Bearer ${newToken}`;
+            return axios(originalRequest);
+          }
+          localStorage.removeItem('token');
+          if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+            window.location.href = '/login';
+          }
+          return Promise.reject(error);
+        })
+        .catch(() => {
+          localStorage.removeItem('token');
+          if (typeof window !== 'undefined' && !window.location.pathname.includes('/login')) {
+            window.location.href = '/login';
+          }
+          return Promise.reject(error);
+        });
     }
     return Promise.reject(error);
   }

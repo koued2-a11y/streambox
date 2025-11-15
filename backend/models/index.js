@@ -5,6 +5,7 @@ const Comment = require('./Comment');
 const Like = require('./Like');
 const WatchHistory = require('./WatchHistory');
 const PlaylistVideo = require('./PlaylistVideo');
+const RefreshToken = require('./RefreshToken');
 
 // Relations User <-> Video
 User.hasMany(Video, { foreignKey: 'uploadedBy', as: 'uploadedVideos' });
@@ -13,6 +14,10 @@ Video.belongsTo(User, { foreignKey: 'uploadedBy', as: 'uploader' });
 // Relations User <-> Playlist
 User.hasMany(Playlist, { foreignKey: 'ownerId', as: 'playlists' });
 Playlist.belongsTo(User, { foreignKey: 'ownerId', as: 'owner' });
+
+// Relations User <-> RefreshToken
+User.hasMany(RefreshToken, { foreignKey: 'userId', as: 'refreshTokens' });
+RefreshToken.belongsTo(User, { foreignKey: 'userId', as: 'user' });
 
 // Relations Video <-> Comment
 Video.hasMany(Comment, { foreignKey: 'videoId', as: 'comments' });
@@ -71,5 +76,8 @@ module.exports = {
   Comment,
   Like,
   WatchHistory,
-  PlaylistVideo
+  PlaylistVideo,
+  RefreshToken
 };
+
+

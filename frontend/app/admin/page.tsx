@@ -15,12 +15,16 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [showUploadModal, setShowUploadModal] = useState(false);
+  const [showBulkUploadModal, setShowBulkUploadModal] = useState(false);
 
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [genre, setGenre] = useState('Autre');
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [bulkFiles, setBulkFiles] = useState<File[]>([]);
+  const [bulkMetas, setBulkMetas] = useState<any[]>([]);
+  const [bulkProgress, setBulkProgress] = useState<Array<{ name: string; progress: number; status: 'pending' | 'uploading' | 'done' | 'error'; error?: string }>>([]);
 
   const genres = ['Action', 'Comédie', 'Drame', 'Horreur', 'Science-Fiction', 'Documentaire', 'Animation', 'Autre'];
 
@@ -121,6 +125,13 @@ export default function AdminPage() {
               >
                 <FiUpload size={20} />
                 Upload une vidéo
+              </button>
+              <button
+                onClick={() => setShowBulkUploadModal(true)}
+                className="ml-3 bg-white text-primary hover:bg-gray-100 font-semibold py-3 px-6 rounded-lg flex items-center gap-2 transition-colors"
+              >
+                <FiUpload size={18} />
+                Upload multiple
               </button>
             </div>
           </div>
@@ -346,6 +357,178 @@ export default function AdminPage() {
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {showBulkUploadModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-y-auto">
+            <div className="bg-white dark:bg-dark-card rounded-2xl p-8 max-w-4xl w-full my-8">
+              <h2 className="text-2xl font-bold mb-4">Upload multiple de vidéos</h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Fichiers vidéos *</label>
+                  <input
+                    type="file"
+                    multiple
+                    accept="video/*"
+                    onChange={(e) => {
+                      const files = e.target.files ? Array.from(e.target.files) : [];
+                      setBulkFiles(files);
+                      setBulkMetas(files.map(f => ({ title: f.name, description: '', genre: 'Autre' })));
+                    }}
+                    className="input-field"
+                  />
+                </div>
+
+                {bulkFiles.length > 0 && (
+                  <div className="space-y-3 max-h-64 overflow-auto">
+                    {bulkFiles.map((file, idx) => (
+                      <div key={idx} className="p-3 border rounded flex flex-col md:flex-row md:items-center gap-3">
+                        <div className="flex-1">
+                          <p className="font-semibold">{file.name}</p>
+                          <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <input
+                              type="text"
+                              value={bulkMetas[idx]?.title || ''}
+                              onChange={(e) => {
+                                const copy = [...bulkMetas];
+                                copy[idx] = { ...(copy[idx] || {}), title: e.target.value };
+                                setBulkMetas(copy);
+                              }}
+                              className="input-field"
+                              placeholder="Titre"
+                            />
+                            <input
+                              type="text"
+                              value={bulkMetas[idx]?.genre || 'Autre'}
+                              onChange={(e) => {
+                                const copy = [...bulkMetas];
+                                copy[idx] = { ...(copy[idx] || {}), genre: e.target.value };
+                                setBulkMetas(copy);
+                              }}
+                              className="input-field"
+                              placeholder="Genre"
+                            />
+                            <input
+                              type="file"
+                              accept="image/*"
+                              onChange={(e) => {
+                                const fileThumb = e.target.files?.[0] || null;
+                                const copy = [...bulkFiles];
+                                // store thumbnail separately using a parallel state
+                                const metas = [...bulkMetas];
+                                metas[idx] = { ...(metas[idx] || {}), thumbnailFile: fileThumb };
+                                setBulkMetas(metas);
+                              }}
+                              className="input-field"
+                            />
+                          </div>
+                          <textarea
+                            value={bulkMetas[idx]?.description || ''}
+                            onChange={(e) => {
+                              const copy = [...bulkMetas];
+                              copy[idx] = { ...(copy[idx] || {}), description: e.target.value };
+                              setBulkMetas(copy);
+                            }}
+                            className="input-field mt-2"
+                            placeholder="Description (optionnel)"
+                          />
+                        </div>
+                        <div className="flex-shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const files = bulkFiles.filter((_, i) => i !== idx);
+                              setBulkFiles(files);
+                              const metas = bulkMetas.filter((_, i) => i !== idx);
+                              setBulkMetas(metas);
+                            }}
+                            className="btn-secondary"
+                          >
+                            Supprimer
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex gap-3 pt-4 justify-end">
+                  <button
+                    type="button"
+                    onClick={() => { setShowBulkUploadModal(false); setBulkFiles([]); setBulkMetas([]); }}
+                    className="btn-secondary"
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!bulkFiles.length) return alert('Sélectionnez au moins un fichier');
+
+                      // initialize progress
+                      setBulkProgress(bulkFiles.map((f) => ({ name: f.name, progress: 0, status: 'pending' })));
+
+                      for (let i = 0; i < bulkFiles.length; i++) {
+                        const file = bulkFiles[i];
+                        const meta = bulkMetas[i] || {};
+
+                        setBulkProgress((prev) => prev.map((p, idx) => idx === i ? { ...p, status: 'uploading', progress: 0 } : p));
+
+                        const form = new FormData();
+                        form.append('video', file);
+                        if (meta?.thumbnailFile) form.append('thumbnail', meta.thumbnailFile);
+                        form.append('title', meta?.title || file.name);
+                        form.append('description', meta?.description || '');
+                        form.append('genre', meta?.genre || 'Autre');
+
+                        let attempt = 0;
+                        let success = false;
+                        while (attempt < 2 && !success) {
+                          try {
+                            await api.post('/videos', form, {
+                              headers: { 'Content-Type': 'multipart/form-data' },
+                              onUploadProgress: (ev: any) => {
+                                const percent = ev.total ? Math.round((ev.loaded / ev.total) * 100) : 0;
+                                setBulkProgress((prev) => prev.map((p, idx) => idx === i ? { ...p, progress: percent } : p));
+                              }
+                            });
+
+                            setBulkProgress((prev) => prev.map((p, idx) => idx === i ? { ...p, progress: 100, status: 'done' } : p));
+                            success = true;
+                          } catch (err: any) {
+                            attempt += 1;
+                            console.error(`Upload erreur pour ${file.name} (tentative ${attempt}):`, err);
+                            if (attempt >= 2) {
+                              setBulkProgress((prev) => prev.map((p, idx) => idx === i ? { ...p, status: 'error', error: err.response?.data?.message || err.message } : p));
+                            } else {
+                              // small delay before retry
+                              await new Promise(r => setTimeout(r, 800));
+                            }
+                          }
+                        }
+                      }
+
+                      // final check
+                      const failed = bulkProgress.filter(p => p.status === 'error');
+                      if (failed.length === 0) {
+                        alert('Tous les fichiers ont été uploadés');
+                        setShowBulkUploadModal(false);
+                        setBulkFiles([]);
+                        setBulkMetas([]);
+                        setBulkProgress([]);
+                        fetchVideos();
+                      } else {
+                        alert('Certains uploads ont échoué, vérifiez la liste.');
+                      }
+                    }}
+                    className="btn-primary"
+                  >
+                    Upload tout
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
         )}
