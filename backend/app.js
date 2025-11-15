@@ -20,6 +20,13 @@ connectDB();
 const rawFrontendUrls = process.env.FRONTEND_URLS || process.env.FRONTEND_URL || '';
 const allowedOrigins = rawFrontendUrls.split(',').map(s => s.trim()).filter(Boolean);
 
+// Middleware to force CORS credentials header on all responses
+// Must run BEFORE cors() to ensure it's set for preflight too
+app.use((req, res, next) => {
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  next();
+});
+
 app.use(cors({
   origin: function(origin, callback) {
     // Allow non-browser requests (curl, server-to-server) with no origin
@@ -52,17 +59,6 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
   maxAge: 86400
 }));
-// Ensure Access-Control-Allow-Credentials is always explicitly set to 'true'
-// Some proxies (Cloudflare / platform edge) may strip or change CORS headers,
-// so we set it again here after the cors middleware.
-app.use((req, res, next) => {
-  try {
-    res.setHeader('Access-Control-Allow-Credentials', 'true');
-  } catch (e) {
-    // ignore
-  }
-  next();
-});
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
