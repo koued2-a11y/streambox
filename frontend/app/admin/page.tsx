@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Layout from '@/components/Layout';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import api from '@/services/api';
+import supabase from '@/services/supabase';
 import { FiUpload, FiVideo, FiTrash2, FiUsers, FiEye } from 'react-icons/fi';
 
 export default function AdminPage() {
@@ -56,31 +57,70 @@ export default function AdminPage() {
     }
 
     setUploading(true);
-    const formData = new FormData();
-    formData.append('video', videoFile);
-    if (thumbnailFile) {
-      formData.append('thumbnail', thumbnailFile);
-    }
-    formData.append('title', title);
-    formData.append('description', description);
-    formData.append('genre', genre);
 
     try {
-      await api.post('/videos', formData, {
-        headers: { 'Content-Type': 'multipart/form-data' }
-      });
-      
-      setShowUploadModal(false);
-      setTitle('');
-      setDescription('');
-      setGenre('Autre');
-      setVideoFile(null);
-      setThumbnailFile(null);
-      fetchVideos();
-      alert('Vidéo uploadée avec succès !');
+      // If Supabase client is configured (anon key), upload file directly to storage
+      if (process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+        const bucket = process.env.NEXT_PUBLIC_SUPABASE_BUCKET || 'videos';
+        const videoKey = `videos/${Date.now()}-${(videoFile as File).name}`;
+        // upload video
+        const { error: uploadErr } = await supabase.storage.from(bucket).upload(videoKey, videoFile as File, { cacheControl: '3600', upsert: false });
+        if (uploadErr) throw uploadErr;
+        const { publicURL: videoPublic } = supabase.storage.from(bucket).getPublicUrl(videoKey);
+
+        let thumbPublic = null;
+        if (thumbnailFile) {
+          const thumbKey = `thumbnails/${Date.now()}-${(thumbnailFile as File).name}`;
+          const { error: tErr } = await supabase.storage.from(bucket).upload(thumbKey, thumbnailFile as File, { cacheControl: '3600', upsert: false });
+          if (tErr) console.warn('Thumbnail upload warning:', tErr.message);
+          const { publicURL } = supabase.storage.from(bucket).getPublicUrl(thumbKey);
+          thumbPublic = publicURL;
+        }
+
+        // Create record in backend
+        await api.post('/videos/from-storage', {
+          title,
+          description,
+          genre,
+          videoUrl: videoPublic,
+          thumbnailUrl: thumbPublic
+        });
+
+        setShowUploadModal(false);
+        setTitle('');
+        setDescription('');
+        setGenre('Autre');
+        setVideoFile(null);
+        setThumbnailFile(null);
+        fetchVideos();
+        alert('Vidéo uploadée avec succès (Supabase Storage) !');
+      } else {
+        // Fallback to existing backend upload
+        const formData = new FormData();
+        formData.append('video', videoFile);
+        if (thumbnailFile) {
+          formData.append('thumbnail', thumbnailFile);
+        }
+        formData.append('title', title);
+        formData.append('description', description);
+        formData.append('genre', genre);
+
+        await api.post('/videos', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+
+        setShowUploadModal(false);
+        setTitle('');
+        setDescription('');
+        setGenre('Autre');
+        setVideoFile(null);
+        setThumbnailFile(null);
+        fetchVideos();
+        alert('Vidéo uploadée avec succès !');
+      }
     } catch (error: any) {
-      console.error('Erreur lors de l\'upload:', error);
-      alert(error.response?.data?.message || 'Erreur lors de l\'upload de la vidéo');
+      console.error("Erreur lors de l'upload:", error);
+      alert(error.message || error.response?.data?.message || 'Erreur lors de l\'upload de la vidéo');
     } finally {
       setUploading(false);
     }
